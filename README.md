@@ -2,6 +2,17 @@
 
 A cross-platform mobile application that helps users track and plan their meals using AI-powered suggestions, while monitoring their daily calorie intake and progress towards their nutritional goals.
 
+## Demo
+
+https://github.com/sufiaashraf/AIMealPlanner/assets/demo/demo.mov
+
+Watch our demo video to see the app in action! The demo showcases:
+- AI-powered meal suggestions
+- Meal type selection and tracking
+- Daily calorie monitoring with visual indicators
+- Interactive calendar view with meal history
+- Goal setting and progress tracking
+
 ## Features
 
 1. **AI Meal Planner**
