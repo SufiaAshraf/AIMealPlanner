@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Modal, SafeAreaView, Platform } from 'react-native';
-import { Button, Input, Card, Text } from '@rneui/themed';
-import { Meal, UserPreferences, MealType } from '../types';
+import { View, StyleSheet, ScrollView, Alert, Modal, SafeAreaView, Platform, TouchableOpacity } from 'react-native';
+import { Button, Input, Card, Text, CheckBox, Divider } from '@rneui/themed';
+import { Meal, UserPreferences, MealType, Ingredient, RecipeStep } from '../types';
 import { generateMealSuggestions } from '../services/aiService';
 import { storageService } from '../services/storageService';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,6 +15,10 @@ const MealPlannerScreen = () => {
   const [mealTypeVisible, setMealTypeVisible] = useState<boolean>(false);
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(null);
   const [finalizedMeals, setFinalizedMeals] = useState<Meal[]>([]);
+  const [recipeModalVisible, setRecipeModalVisible] = useState<boolean>(false);
+  const [ingredientsModalVisible, setIngredientsModalVisible] = useState<boolean>(false);
+  const [selectedMealForModal, setSelectedMealForModal] = useState<Meal | null>(null);
+  const [localIngredients, setLocalIngredients] = useState<Ingredient[]>([]);
 
   useEffect(() => {
     loadPreferences();
@@ -81,6 +85,95 @@ const MealPlannerScreen = () => {
     }
   };
 
+  const handleViewRecipe = (meal: Meal) => {
+    setSelectedMealForModal(meal);
+    setRecipeModalVisible(true);
+  };
+
+  const handleViewIngredients = (meal: Meal) => {
+    setSelectedMealForModal(meal);
+    setLocalIngredients(meal.ingredients?.map(ing => ({ ...ing })) || []);
+    setIngredientsModalVisible(true);
+  };
+
+  const toggleIngredient = (index: number) => {
+    setLocalIngredients(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], isChecked: !updated[index].isChecked };
+      return updated;
+    });
+  };
+
+  const renderRecipeModal = () => (
+    <Modal
+      visible={recipeModalVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setRecipeModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>{selectedMealForModal?.name}</Text>
+          <ScrollView style={styles.modalScroll}>
+            <View style={styles.recipeContainer}>
+              <Text style={styles.recipeSubtitle}>Cooking Instructions</Text>
+              {selectedMealForModal?.recipe?.map((step) => (
+                <View key={step.number} style={styles.recipeStep}>
+                  <View style={styles.stepNumberContainer}>
+                    <Text style={styles.stepNumber}>{step.number}</Text>
+                  </View>
+                  <View style={styles.stepInstructionContainer}>
+                    <Text style={styles.stepInstruction}>{step.instruction}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+          <Button
+            title="Close"
+            onPress={() => setRecipeModalVisible(false)}
+            buttonStyle={styles.closeButton}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+
+  const renderIngredientsModal = () => (
+    <Modal
+      visible={ingredientsModalVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setIngredientsModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Ingredients</Text>
+          <ScrollView style={styles.modalScroll}>
+            {localIngredients.map((ingredient, index) => (
+              <CheckBox
+                key={index}
+                title={ingredient.name}
+                checked={ingredient.isChecked}
+                onPress={() => toggleIngredient(index)}
+                textStyle={[
+                  styles.ingredientText,
+                  ingredient.isChecked && styles.strikethrough
+                ]}
+                containerStyle={styles.checkboxContainer}
+              />
+            ))}
+          </ScrollView>
+          <Button
+            title="Close"
+            onPress={() => setIngredientsModalVisible(false)}
+            buttonStyle={styles.closeButton}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <LinearGradient
@@ -127,11 +220,27 @@ const MealPlannerScreen = () => {
               </View>
               <Card.Divider />
               <Text style={styles.description}>{meal.description}</Text>
+              <View style={styles.buttonRow}>
+                <Button
+                  title="Recipe"
+                  type="outline"
+                  buttonStyle={styles.recipeButton}
+                  titleStyle={styles.buttonText}
+                  onPress={() => handleViewRecipe(meal)}
+                />
+                <Button
+                  title="Ingredients"
+                  type="outline"
+                  buttonStyle={styles.ingredientsButton}
+                  titleStyle={styles.buttonText}
+                  onPress={() => handleViewIngredients(meal)}
+                />
+              </View>
               <Button
                 title="Add to Today's Meals"
                 type="solid"
                 buttonStyle={styles.addButton}
-                titleStyle={styles.buttonText}
+                titleStyle={styles.addButtonText}
                 onPress={() => handleAddMeal(meal)}
                 disabled={!!selectedMealId && selectedMealId !== meal.id}
               />
@@ -156,6 +265,9 @@ const MealPlannerScreen = () => {
             </Card>
           )}
         </ScrollView>
+
+        {renderRecipeModal()}
+        {renderIngredientsModal()}
 
         <Modal
           visible={mealTypeVisible}
@@ -267,46 +379,80 @@ const styles = StyleSheet.create({
   mealCard: {
     borderRadius: 12,
     marginBottom: 16,
-    padding: 16,
+    padding: 20,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    backgroundColor: '#fff',
   },
   mealHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   mealTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     color: '#2c3e50',
     flex: 1,
+    marginRight: 12,
   },
   description: {
     color: '#34495e',
-    marginBottom: 16,
-    lineHeight: 20,
+    marginBottom: 20,
+    lineHeight: 22,
+    fontSize: 16,
   },
   calories: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '600',
     color: '#2ecc71',
+    backgroundColor: '#e8f8f5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
   },
   blurredCard: {
     opacity: 0.5,
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    gap: 12,
+  },
+  recipeButton: {
+    borderColor: '#2ecc71',
+    borderRadius: 8,
+    paddingVertical: 10,
+    flex: 1,
+    backgroundColor: '#f8fff9',
+  },
+  ingredientsButton: {
+    borderColor: '#2ecc71',
+    borderRadius: 8,
+    paddingVertical: 10,
+    flex: 1,
+    backgroundColor: '#f8fff9',
   },
   addButton: {
     backgroundColor: '#2ecc71',
     borderRadius: 8,
     paddingVertical: 12,
+    marginTop: 4,
   },
   buttonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2ecc71',
+  },
+  addButtonText: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#fff',
   },
   finalizedCard: {
     borderRadius: 12,
@@ -367,6 +513,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 20,
     paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    maxHeight: '90%',
   },
   modalTitle: {
     fontSize: 24,
@@ -411,6 +558,73 @@ const styles = StyleSheet.create({
     backgroundColor: '#2ecc71',
     borderRadius: 8,
     paddingVertical: 12,
+  },
+  modalScroll: {
+    flexGrow: 0,
+  },
+  recipeContainer: {
+    paddingHorizontal: 8,
+    paddingBottom: 16,
+  },
+  recipeSubtitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  recipeStep: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    alignItems: 'flex-start',
+  },
+  stepNumberContainer: {
+    width: 32,
+    height: 32,
+    backgroundColor: '#2ecc71',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  stepNumber: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  stepInstructionContainer: {
+    flex: 1,
+    backgroundColor: '#f8fff9',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e8f8f5',
+  },
+  stepInstruction: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#2c3e50',
+  },
+  ingredientText: {
+    fontSize: 16,
+    color: '#2c3e50',
+  },
+  strikethrough: {
+    textDecorationLine: 'line-through',
+    color: '#95a5a6',
+  },
+  checkboxContainer: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 8,
+    marginLeft: 0,
+    marginRight: 0,
+  },
+  closeButton: {
+    backgroundColor: '#2ecc71',
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginTop: 16,
   },
 });
 

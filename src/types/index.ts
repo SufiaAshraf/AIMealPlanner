@@ -4,6 +4,16 @@ export enum MealType {
   DINNER = 'Dinner'
 }
 
+export interface Ingredient {
+  name: string;
+  isChecked: boolean;
+}
+
+export interface RecipeStep {
+  number: number;
+  instruction: string;
+}
+
 export interface Meal {
   id: string;
   name: string;
@@ -11,6 +21,8 @@ export interface Meal {
   timestamp: string;
   description?: string;
   type?: MealType;
+  recipe?: RecipeStep[];
+  ingredients?: Ingredient[];
 }
 
 export interface DailyGoal {
