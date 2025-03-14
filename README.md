@@ -4,7 +4,7 @@ A cross-platform mobile application that helps users track and plan their meals 
 
 ## Demo
 
-https://github.com/sufiaashraf/AIMealPlanner/assets/demo/demo.mov
+https://github.com/SufiaAshraf/AIMealPlanner/assets/demo/demo.mp4
 
 Watch our demo video to see the app in action! The demo showcases:
 - AI-powered meal suggestions
