@@ -4,10 +4,8 @@ A cross-platform mobile application that helps users track and plan their meals 
 
 ## Demo
 
-https://github.com/user-attachments/assets/6878db57-3cbe-4a5d-a297-997f025ad5fc
-
 <div align="center">
-  <video src="https://github.com/user-attachments/assets/6878db57-3cbe-4a5d-a297-997f025ad5fc" width="100%" />
+  <video src="https://github.com/user-attachments/assets/6878db57-3cbe-4a5d-a297-997f025ad5fc" width="100%" controls></video>
 </div>
 
 Watch our demo video to see the app in action! The demo showcases:
