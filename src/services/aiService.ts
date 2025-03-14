@@ -22,11 +22,9 @@ export const generateMealSuggestions = async (
   restrictions: string[]
 ): Promise<Meal[]> => {
   try {
-    // Comment out the OpenAI API call for now
-    /*
     const systemPrompt = `You are a nutrition expert AI. Generate meal suggestions based on the user's request, 
     considering their preferences: ${preferences.join(', ')} and restrictions: ${restrictions.join(', ')}.
-    Provide detailed meal suggestions with accurate calorie counts.`;
+    Provide detailed meal suggestions with accurate calorie counts. Format each suggestion as: "Meal Name (calories) - Description"`;
 
     const response = await openai.chat.completions.create({
       model: 'gpt-4',
@@ -35,15 +33,11 @@ export const generateMealSuggestions = async (
         { role: 'user', content: prompt }
       ],
       temperature: 0.7,
-      max_tokens: 500
+      max_tokens: 500,
+      store: true
     });
 
-    const suggestions = response.choices[0]?.message?.content;
-    if (!suggestions) throw new Error('No suggestions generated');
-    */
-
-    // Use dummy suggestions instead
-    const suggestions = dummyMealSuggestions;
+    const suggestions = response.choices[0]?.message?.content?.split('\n').filter(Boolean) || dummyMealSuggestions;
     
     // Parse the suggestions into meal objects
     const meals: Meal[] = suggestions
@@ -58,6 +52,13 @@ export const generateMealSuggestions = async (
     return meals;
   } catch (error) {
     console.error('Error generating meal suggestions:', error);
-    throw error;
+    // Fallback to dummy suggestions in case of error
+    return dummyMealSuggestions.map((suggestion, index) => ({
+      id: `${Date.now()}-${index}`,
+      name: suggestion.split('(')[0].trim(),
+      calories: parseInt(suggestion.match(/\((\d+)\s*calories\)/)?.[1] || '0'),
+      description: suggestion,
+      timestamp: new Date().toISOString()
+    }));
   }
 }; 
