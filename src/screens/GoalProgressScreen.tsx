@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Modal, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, Modal, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Text, Button, Input, Card } from '@rneui/themed';
 import { format, subDays, parseISO } from 'date-fns';
 import CalendarPicker from 'react-native-calendar-picker';
 import { DailyGoal, Meal } from '../types';
 import { storageService } from '../services/storageService';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 
 const GoalProgressScreen = () => {
   const [calorieGoal, setCalorieGoal] = useState('2000');
@@ -14,10 +16,14 @@ const GoalProgressScreen = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [selectedDayMeals, setSelectedDayMeals] = useState<Meal[]>([]);
   const [showMealModal, setShowMealModal] = useState(false);
+  const [goals, setGoals] = useState<DailyGoal[]>([]);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+      loadGoals();
+    }, [])
+  );
 
   const loadData = async () => {
     try {
@@ -43,6 +49,16 @@ const GoalProgressScreen = () => {
       }
     } catch (error) {
       console.error('Error loading data:', error);
+    }
+  };
+
+  const loadGoals = async () => {
+    try {
+      const savedGoals = await storageService.getGoals();
+      setGoals(savedGoals);
+    } catch (error) {
+      console.error('Error loading goals:', error);
+      Alert.alert('Error', 'Failed to load goals');
     }
   };
 
@@ -121,11 +137,19 @@ const GoalProgressScreen = () => {
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
     const formattedDate = format(date, 'yyyy-MM-dd');
-    const dayMeals = meals.filter(meal => 
-      format(new Date(meal.timestamp), 'yyyy-MM-dd') === formattedDate
-    );
-    setSelectedDayMeals(dayMeals);
-    setShowMealModal(true);
+    loadSelectedDayMeals(formattedDate);
+  };
+
+  const loadSelectedDayMeals = async (formattedDate: string) => {
+    try {
+      const history = await storageService.getMealHistory();
+      const dayHistory = history.find(day => day.date === formattedDate);
+      setSelectedDayMeals(dayHistory?.meals || []);
+      setShowMealModal(true);
+    } catch (error) {
+      console.error('Error loading selected day meals:', error);
+      Alert.alert('Error', 'Failed to load meals for selected day');
+    }
   };
 
   const getCustomDatesStyles = () => {
@@ -182,59 +206,110 @@ const GoalProgressScreen = () => {
     </Modal>
   );
 
+  const handleClearHistory = () => {
+    Alert.alert(
+      'Clear Goals History',
+      'Are you sure you want to clear all goals history? This action cannot be undone.',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await storageService.clearGoalsHistory();
+              await storageService.clearMealHistory();
+              setGoals([]);
+              setMeals([]);
+              setSelectedDayMeals([]);
+              setWeeklyProgress([]);
+              setShowMealModal(false);
+              Alert.alert('Success', 'History cleared successfully');
+            } catch (error) {
+              console.error('Error clearing history:', error);
+              Alert.alert('Error', 'Failed to clear history');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   return (
-    <ScrollView style={styles.container}>
-      <Card containerStyle={styles.goalCard}>
-        <Card.Title>Daily Calorie Goal</Card.Title>
-        <Card.Divider />
-        {isEditing ? (
-          <View style={styles.editContainer}>
-            <Input
-              value={calorieGoal}
-              onChangeText={setCalorieGoal}
-              keyboardType="numeric"
-              label="Daily Calorie Target"
-            />
+    <View style={styles.container}>
+      <LinearGradient
+        colors={['#2ecc71', '#27ae60']}
+        style={styles.headerGradient}
+      >
+        <Text h3 style={styles.headerTitle}>Goals Progress</Text>
+        <Text style={styles.headerSubtitle}>Track your calorie goals</Text>
+      </LinearGradient>
+
+      <ScrollView style={styles.contentContainer}>
+        <Card containerStyle={styles.goalCard}>
+          <Card.Title>Daily Calorie Goal</Card.Title>
+          <Card.Divider />
+          {isEditing ? (
+            <View style={styles.editContainer}>
+              <Input
+                value={calorieGoal}
+                onChangeText={setCalorieGoal}
+                keyboardType="numeric"
+                label="Daily Calorie Target"
+              />
+              <Button
+                title="Save"
+                onPress={handleSaveGoal}
+                buttonStyle={styles.saveButton}
+              />
+            </View>
+          ) : (
+            <View style={styles.goalContainer}>
+              <Text h3 style={styles.goalText}>{calorieGoal} calories</Text>
+              <Button
+                title="Edit Goal"
+                type="outline"
+                onPress={() => setIsEditing(true)}
+              />
+            </View>
+          )}
+        </Card>
+
+        <Card containerStyle={styles.calendarCard}>
+          <View style={styles.cardHeader}>
+            <Card.Title>Meal History</Card.Title>
             <Button
-              title="Save"
-              onPress={handleSaveGoal}
-              buttonStyle={styles.saveButton}
-            />
-          </View>
-        ) : (
-          <View style={styles.goalContainer}>
-            <Text h3 style={styles.goalText}>{calorieGoal} calories</Text>
-            <Button
-              title="Edit Goal"
+              title="Clear History"
               type="outline"
-              onPress={() => setIsEditing(true)}
+              onPress={handleClearHistory}
+              buttonStyle={styles.clearButton}
+              titleStyle={styles.clearButtonText}
             />
           </View>
-        )}
-      </Card>
+          <Card.Divider />
+          <CalendarPicker
+            onDateChange={handleDateSelect}
+            customDatesStyles={getCustomDatesStyles()}
+            selectedDayColor="#3498db"
+            selectedDayTextColor="#ffffff"
+            todayBackgroundColor="#f1c40f"
+            todayTextStyle={{ color: '#ffffff' }}
+            textStyle={{ fontSize: 14 }}
+            width={320}
+          />
+        </Card>
 
-      <Card containerStyle={styles.calendarCard}>
-        <Card.Title>Meal History</Card.Title>
-        <Card.Divider />
-        <CalendarPicker
-          onDateChange={handleDateSelect}
-          customDatesStyles={getCustomDatesStyles()}
-          selectedDayColor="#3498db"
-          selectedDayTextColor="#ffffff"
-          todayBackgroundColor="#f1c40f"
-          todayTextStyle={{ color: '#ffffff' }}
-          textStyle={{ fontSize: 14 }}
-          width={320}
-        />
-      </Card>
+        <View style={styles.progressContainer}>
+          <Text h4 style={styles.sectionTitle}>Today's Progress</Text>
+          {renderProgressRing(todayProgress, parseInt(calorieGoal))}
+        </View>
 
-      <View style={styles.progressContainer}>
-        <Text h4 style={styles.sectionTitle}>Today's Progress</Text>
-        {renderProgressRing(todayProgress, parseInt(calorieGoal))}
-      </View>
-
-      {renderMealModal()}
-    </ScrollView>
+        {renderMealModal()}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -242,6 +317,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  headerGradient: {
+    padding: 20,
+    paddingTop: Platform.OS === 'android' ? 40 : 20,
+  },
+  headerTitle: {
+    color: '#fff',
+    marginBottom: 5,
+    fontWeight: 'bold',
+  },
+  headerSubtitle: {
+    color: '#fff',
+    opacity: 0.9,
+  },
+  contentContainer: {
+    flex: 1,
+    padding: 16,
   },
   goalCard: {
     borderRadius: 12,
@@ -268,14 +360,42 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 12,
   },
-  progressContainer: {
-    padding: 16,
+  calendarCard: {
+    borderRadius: 12,
+    marginBottom: 16,
+    padding: 8,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  clearButton: {
+    borderColor: '#e74c3c',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    height: 36,
+  },
+  clearButtonText: {
+    color: '#e74c3c',
+    fontSize: 12,
+  },
+  progressContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
   },
   sectionTitle: {
-    marginBottom: 16,
-    color: '#2c3e50',
+    fontSize: 18,
     fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 12,
   },
   ringContainer: {
     alignItems: 'center',
@@ -308,51 +428,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2c3e50',
     marginTop: 4,
-  },
-  historyContainer: {
-    padding: 16,
-  },
-  dayCard: {
-    borderRadius: 12,
-    marginBottom: 8,
-    padding: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  dayRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dayInfo: {
-    flex: 1,
-  },
-  dateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#2c3e50',
-    marginBottom: 4,
-  },
-  calorieInfo: {
-    fontSize: 14,
-    color: '#7f8c8d',
-  },
-  miniRingContainer: {
-    transform: [{ scale: 0.5 }],
-    marginRight: -30,
-  },
-  calendarCard: {
-    borderRadius: 12,
-    marginBottom: 16,
-    padding: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   modalContainer: {
     flex: 1,

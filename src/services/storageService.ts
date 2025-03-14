@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Meal, DailyGoal, UserPreferences } from '../types';
+import { Meal, DailyGoal, UserPreferences, MealHistory } from '../types';
+import { format } from 'date-fns';
 
 const STORAGE_KEYS = {
   MEALS: 'meals',
@@ -11,9 +12,29 @@ export const storageService = {
   // Meals
   async saveMeal(meal: Meal): Promise<void> {
     try {
+      // Save to meals storage
       const meals = await this.getMeals();
       meals.push(meal);
       await AsyncStorage.setItem(STORAGE_KEYS.MEALS, JSON.stringify(meals));
+
+      // Update meal history
+      const history = await this.getMealHistory();
+      const mealDate = format(new Date(meal.timestamp), 'yyyy-MM-dd');
+      
+      let dayHistory = history.find(day => day.date === mealDate);
+      if (dayHistory) {
+        dayHistory.meals.push(meal);
+        dayHistory.totalCalories = dayHistory.meals.reduce((sum, m) => sum + m.calories, 0);
+      } else {
+        dayHistory = {
+          date: mealDate,
+          meals: [meal],
+          totalCalories: meal.calories
+        };
+        history.push(dayHistory);
+      }
+
+      await AsyncStorage.setItem('mealHistory', JSON.stringify(history));
     } catch (error) {
       console.error('Error saving meal:', error);
       throw error;
@@ -89,6 +110,36 @@ export const storageService = {
       ]);
     } catch (error) {
       console.error('Error clearing storage:', error);
+      throw error;
+    }
+  },
+
+  clearMealHistory: async () => {
+    try {
+      await AsyncStorage.removeItem('mealHistory');
+      console.log('Meal history cleared successfully');
+    } catch (error) {
+      console.error('Error clearing meal history:', error);
+      throw error;
+    }
+  },
+
+  clearGoalsHistory: async () => {
+    try {
+      await AsyncStorage.removeItem('dailyGoals');
+      console.log('Goals history cleared successfully');
+    } catch (error) {
+      console.error('Error clearing goals history:', error);
+      throw error;
+    }
+  },
+
+  getMealHistory: async (): Promise<MealHistory[]> => {
+    try {
+      const jsonValue = await AsyncStorage.getItem('mealHistory');
+      return jsonValue != null ? JSON.parse(jsonValue) : [];
+    } catch (error) {
+      console.error('Error getting meal history:', error);
       throw error;
     }
   },

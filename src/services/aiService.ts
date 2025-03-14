@@ -24,7 +24,7 @@ export const generateMealSuggestions = async (
   try {
     console.log('Generating meal suggestions for:', { prompt, preferences, restrictions });
 
-    const systemPrompt = `You are a nutrition expert AI. Generate 5 meal suggestions based on the user's request. 
+    const systemPrompt = `You are a nutrition expert AI. Generate 8 meal suggestions based on the user's request. 
     Consider these preferences: ${preferences.join(', ')} and restrictions: ${restrictions.join(', ')}.
     IMPORTANT: Format each suggestion exactly as follows (one per line, separated by double newlines):
     "Meal Name (X calories) - Description
@@ -106,6 +106,7 @@ export const generateMealSuggestions = async (
         .filter(step => 
           step.length > 0 && 
           !step.toLowerCase().includes('recipe') &&
+          !/^\d+$/.test(step) && // Remove standalone numbers
           !/^step\s*\d+$/i.test(step)
         )
         .map((step, index) => ({

@@ -511,8 +511,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 20,
-    paddingBottom: Platform.OS === 'ios' ? 40 : 20,
+    padding: 24,
+    paddingBottom: Platform.OS === 'ios' ? 40 : 24,
     maxHeight: '90%',
   },
   modalTitle: {
@@ -520,7 +520,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2c3e50',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   mealTypeButton: {
     marginVertical: 6,
@@ -586,6 +586,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 16,
+    marginTop: 4,
   },
   stepNumber: {
     color: '#fff',
@@ -596,7 +597,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fff9',
     borderRadius: 12,
-    padding: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e8f8f5',
   },
@@ -624,7 +625,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#2ecc71',
     borderRadius: 8,
     paddingVertical: 12,
-    marginTop: 16,
+    marginTop: 24,
   },
 });
 
