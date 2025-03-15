@@ -19,6 +19,8 @@ const MealPlannerScreen = () => {
   const [ingredientsModalVisible, setIngredientsModalVisible] = useState<boolean>(false);
   const [selectedMealForModal, setSelectedMealForModal] = useState<Meal | null>(null);
   const [localIngredients, setLocalIngredients] = useState<Ingredient[]>([]);
+  const [nutritionModalVisible, setNutritionModalVisible] = useState<boolean>(false);
+  const [modalServingSize, setModalServingSize] = useState<number>(1);
 
   useEffect(() => {
     loadPreferences();
@@ -36,13 +38,16 @@ const MealPlannerScreen = () => {
     }
 
     setLoading(true);
+    setSuggestedMeals([]);
     try {
       const meals = await generateMealSuggestions(
         userPrompt,
         preferences?.cuisinePreferences || [],
-        preferences?.dietaryRestrictions || []
+        preferences?.dietaryRestrictions || [],
+        1 // Always get recipe for 1 serving
       );
       setSuggestedMeals(meals);
+      setUserPrompt('');
     } catch (error) {
       Alert.alert('Error', 'Failed to generate meal suggestions. Please try again.');
       console.error(error);
@@ -93,7 +98,13 @@ const MealPlannerScreen = () => {
   const handleViewIngredients = (meal: Meal) => {
     setSelectedMealForModal(meal);
     setLocalIngredients(meal.ingredients?.map(ing => ({ ...ing })) || []);
+    setModalServingSize(1); // Reset serving size to 1 when opening modal
     setIngredientsModalVisible(true);
+  };
+
+  const handleViewNutrition = (meal: Meal) => {
+    setSelectedMealForModal(meal);
+    setNutritionModalVisible(true);
   };
 
   const toggleIngredient = (index: number) => {
@@ -104,6 +115,78 @@ const MealPlannerScreen = () => {
     });
   };
 
+  const handleSaveForLater = async (meal: Meal) => {
+    try {
+      await storageService.saveMealForLater(meal);
+      Alert.alert('Success', 'Meal saved to your collection');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to save meal');
+    }
+  };
+
+  const updateIngredientQuantities = (servings: number) => {
+    if (!selectedMealForModal?.ingredients) return;
+    
+    setLocalIngredients(selectedMealForModal.ingredients.map(ing => ({
+      ...ing,
+      isChecked: false,
+      quantity: ing.quantity ? {
+        value: (ing.quantity.value / (ing.servings || 1)) * servings,
+        unit: ing.quantity.unit
+      } : undefined,
+      servings
+    })));
+  };
+
+  const handleServingSizeChange = (servings: number) => {
+    setModalServingSize(servings);
+    updateIngredientQuantities(servings);
+  };
+
+  const renderNutritionModal = () => (
+    <Modal
+      visible={nutritionModalVisible}
+      transparent
+      animationType="slide"
+      onRequestClose={() => setNutritionModalVisible(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <Text style={styles.modalTitle}>Nutritional Information</Text>
+          <Text style={styles.modalSubtitle}>{selectedMealForModal?.name}</Text>
+          
+          {selectedMealForModal?.nutritionalInfo && (
+            <View style={styles.nutritionSection}>
+              <View style={styles.nutritionGrid}>
+                <View style={styles.nutritionItem}>
+                  <Text style={styles.nutritionValue}>{selectedMealForModal.calories}</Text>
+                  <Text style={styles.nutritionLabel}>Calories</Text>
+                </View>
+                {Object.entries(selectedMealForModal.nutritionalInfo).map(([key, info]) => (
+                  <View key={key} style={styles.nutritionItem}>
+                    <Text style={styles.nutritionValue}>
+                      {info.value}
+                      <Text style={styles.nutritionUnit}>{info.unit}</Text>
+                    </Text>
+                    <Text style={styles.nutritionLabel}>
+                      {key.charAt(0).toUpperCase() + key.slice(1)}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
+
+          <Button
+            title="Close"
+            onPress={() => setNutritionModalVisible(false)}
+            buttonStyle={styles.closeButton}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+
   const renderRecipeModal = () => (
     <Modal
       visible={recipeModalVisible}
@@ -113,10 +196,12 @@ const MealPlannerScreen = () => {
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{selectedMealForModal?.name}</Text>
-          <ScrollView style={styles.modalScroll}>
-            <View style={styles.recipeContainer}>
-              <Text style={styles.recipeSubtitle}>Cooking Instructions</Text>
+          <ScrollView>
+            <Text style={styles.modalTitle}>{selectedMealForModal?.name}</Text>
+            <Text style={styles.recipeSubtitle}>{selectedMealForModal?.description}</Text>
+
+            <View style={styles.recipeSection}>
+              <Text style={styles.sectionTitle}>Recipe Steps</Text>
               {selectedMealForModal?.recipe?.map((step) => (
                 <View key={step.number} style={styles.recipeStep}>
                   <View style={styles.stepNumberContainer}>
@@ -128,12 +213,13 @@ const MealPlannerScreen = () => {
                 </View>
               ))}
             </View>
+
+            <Button
+              title="Close"
+              onPress={() => setRecipeModalVisible(false)}
+              buttonStyle={styles.closeButton}
+            />
           </ScrollView>
-          <Button
-            title="Close"
-            onPress={() => setRecipeModalVisible(false)}
-            buttonStyle={styles.closeButton}
-          />
         </View>
       </View>
     </Modal>
@@ -149,17 +235,53 @@ const MealPlannerScreen = () => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Ingredients</Text>
+          
+          <View style={styles.servingSizeContainer}>
+            <Text style={styles.servingSizeLabel}>Servings:</Text>
+            <View style={styles.servingSizeButtons}>
+              {[1, 2, 4, 6].map(size => (
+                <Button
+                  key={size}
+                  title={size.toString()}
+                  type={modalServingSize === size ? 'solid' : 'outline'}
+                  buttonStyle={[
+                    styles.servingSizeButton,
+                    modalServingSize === size && styles.selectedServingButton
+                  ]}
+                  titleStyle={[
+                    styles.servingSizeButtonText,
+                    modalServingSize === size && styles.selectedServingButtonText
+                  ]}
+                  onPress={() => handleServingSizeChange(size)}
+                />
+              ))}
+            </View>
+          </View>
+
           <ScrollView style={styles.modalScroll}>
             {localIngredients.map((ingredient, index) => (
               <CheckBox
                 key={index}
-                title={ingredient.name}
+                title={
+                  <View style={styles.ingredientRow}>
+                    <Text style={[
+                      styles.ingredientName,
+                      ingredient.isChecked && styles.strikethrough
+                    ]}>
+                      {ingredient.name}
+                    </Text>
+                    {ingredient.quantity && (
+                      <Text style={[
+                        styles.ingredientQuantity,
+                        ingredient.isChecked && styles.strikethrough
+                      ]}>
+                        {ingredient.quantity.value.toFixed(1)} {ingredient.quantity.unit}
+                      </Text>
+                    )}
+                  </View>
+                }
                 checked={ingredient.isChecked}
                 onPress={() => toggleIngredient(index)}
-                textStyle={[
-                  styles.ingredientText,
-                  ingredient.isChecked && styles.strikethrough
-                ]}
                 containerStyle={styles.checkboxContainer}
               />
             ))}
@@ -192,82 +314,114 @@ const MealPlannerScreen = () => {
             onChangeText={setUserPrompt}
             containerStyle={styles.inputWrapper}
             inputContainerStyle={styles.input}
+            disabled={loading}
             rightIcon={
               <Button
-                title="Get Ideas"
+                title={loading ? '' : "Get Ideas"}
                 loading={loading}
                 onPress={handleGetSuggestions}
                 type="solid"
-                buttonStyle={styles.searchButton}
+                buttonStyle={[styles.searchButton, loading && styles.loadingButton]}
                 titleStyle={styles.searchButtonText}
+                loadingProps={{
+                  color: '#fff',
+                  size: 'small'
+                }}
               />
             }
           />
         </View>
 
         <ScrollView style={styles.suggestionsContainer}>
-          {suggestedMeals.map((meal) => (
-            <Card 
-              key={meal.id} 
-              containerStyle={[
-                styles.mealCard,
-                selectedMealId && selectedMealId !== meal.id && styles.blurredCard
-              ]}
-            >
-              <View style={styles.mealHeader}>
-                <Text style={styles.mealTitle}>{meal.name}</Text>
-                <Text style={styles.calories}>{meal.calories} cal</Text>
-              </View>
-              <Card.Divider />
-              <Text style={styles.description}>{meal.description}</Text>
-              <View style={styles.buttonRow}>
-                <Button
-                  title="Recipe"
-                  type="outline"
-                  buttonStyle={styles.recipeButton}
-                  titleStyle={styles.buttonText}
-                  onPress={() => handleViewRecipe(meal)}
-                />
-                <Button
-                  title="Ingredients"
-                  type="outline"
-                  buttonStyle={styles.ingredientsButton}
-                  titleStyle={styles.buttonText}
-                  onPress={() => handleViewIngredients(meal)}
-                />
-              </View>
-              <Button
-                title="Add to Today's Meals"
-                type="solid"
-                buttonStyle={styles.addButton}
-                titleStyle={styles.addButtonText}
-                onPress={() => handleAddMeal(meal)}
-                disabled={!!selectedMealId && selectedMealId !== meal.id}
-              />
-            </Card>
-          ))}
-
-          {finalizedMeals.length > 0 && (
-            <Card containerStyle={styles.finalizedCard}>
-              <Text style={styles.finalizedTitle}>Today's Meal Plan</Text>
-              <Card.Divider />
-              {finalizedMeals.map((meal) => (
-                <View key={meal.id} style={styles.finalizedMeal}>
-                  <View style={styles.mealTypeContainer}>
-                    <Text style={styles.mealType}>{meal.type}</Text>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Preparing your meal suggestions...</Text>
+            </View>
+          ) : (
+            <>
+              {suggestedMeals.map((meal) => (
+                <Card 
+                  key={meal.id} 
+                  containerStyle={[
+                    styles.mealCard,
+                    selectedMealId && selectedMealId !== meal.id && styles.blurredCard
+                  ]}
+                >
+                  <View style={styles.mealHeader}>
+                    <Text style={styles.mealTitle}>{meal.name}</Text>
+                    <Text style={styles.calories}>{meal.calories} cal</Text>
                   </View>
-                  <View style={styles.mealDetails}>
-                    <Text style={styles.finalizedMealName}>{meal.name}</Text>
-                    <Text style={styles.finalizedCalories}>{meal.calories} cal</Text>
+                  <Card.Divider />
+                  <Text style={styles.description}>{meal.description}</Text>
+                  <View style={styles.buttonRow}>
+                    <Button
+                      title="Recipe"
+                      type="outline"
+                      buttonStyle={styles.actionButton}
+                      titleStyle={styles.buttonText}
+                      onPress={() => handleViewRecipe(meal)}
+                    />
+                    <Button
+                      title="Nutrition"
+                      type="outline"
+                      buttonStyle={styles.actionButton}
+                      titleStyle={styles.buttonText}
+                      onPress={() => handleViewNutrition(meal)}
+                    />
+                    <Button
+                      title="Ingredients"
+                      type="outline"
+                      buttonStyle={styles.actionButton}
+                      titleStyle={styles.buttonText}
+                      onPress={() => handleViewIngredients(meal)}
+                    />
                   </View>
-                </View>
+                  <View style={styles.bottomButtonRow}>
+                    <Button
+                      title="Add to Today's Meals"
+                      type="solid"
+                      buttonStyle={styles.addButton}
+                      titleStyle={styles.addButtonText}
+                      onPress={() => handleAddMeal(meal)}
+                      disabled={!!selectedMealId && selectedMealId !== meal.id}
+                      containerStyle={styles.mainActionButton}
+                    />
+                    <Button
+                      title="Save"
+                      type="outline"
+                      buttonStyle={styles.saveButton}
+                      titleStyle={styles.saveButtonText}
+                      onPress={() => handleSaveForLater(meal)}
+                      containerStyle={styles.saveButtonContainer}
+                    />
+                  </View>
+                </Card>
               ))}
-            </Card>
+
+              {finalizedMeals.length > 0 && (
+                <Card containerStyle={styles.finalizedCard}>
+                  <Text style={styles.finalizedTitle}>Today's Meal Plan</Text>
+                  <Card.Divider />
+                  {finalizedMeals.map((meal) => (
+                    <View key={meal.id} style={styles.finalizedMeal}>
+                      <View style={styles.mealTypeContainer}>
+                        <Text style={styles.mealType}>{meal.type}</Text>
+                      </View>
+                      <View style={styles.mealDetails}>
+                        <Text style={styles.finalizedMealName}>{meal.name}</Text>
+                        <Text style={styles.finalizedCalories}>{meal.calories} cal</Text>
+                      </View>
+                    </View>
+                  ))}
+                </Card>
+              )}
+            </>
           )}
         </ScrollView>
 
         {renderRecipeModal()}
         {renderIngredientsModal()}
+        {renderNutritionModal()}
 
         <Modal
           visible={mealTypeVisible}
@@ -367,6 +521,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#2ecc71',
     borderRadius: 8,
     paddingHorizontal: 16,
+    minWidth: 100,
+  },
+  loadingButton: {
+    backgroundColor: '#27ae60',
   },
   searchButtonText: {
     fontSize: 14,
@@ -422,16 +580,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 12,
-    gap: 12,
+    gap: 8,
   },
-  recipeButton: {
-    borderColor: '#2ecc71',
-    borderRadius: 8,
-    paddingVertical: 10,
-    flex: 1,
-    backgroundColor: '#f8fff9',
-  },
-  ingredientsButton: {
+  actionButton: {
     borderColor: '#2ecc71',
     borderRadius: 8,
     paddingVertical: 10,
@@ -562,10 +713,6 @@ const styles = StyleSheet.create({
   modalScroll: {
     flexGrow: 0,
   },
-  recipeContainer: {
-    paddingHorizontal: 8,
-    paddingBottom: 16,
-  },
   recipeSubtitle: {
     fontSize: 20,
     fontWeight: '600',
@@ -606,9 +753,22 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     color: '#2c3e50',
   },
-  ingredientText: {
+  ingredientRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flex: 1,
+  },
+  ingredientName: {
     fontSize: 16,
     color: '#2c3e50',
+    flex: 1,
+    marginRight: 8,
+  },
+  ingredientQuantity: {
+    fontSize: 16,
+    color: '#2ecc71',
+    fontWeight: '500',
   },
   strikethrough: {
     textDecorationLine: 'line-through',
@@ -626,6 +786,122 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingVertical: 12,
     marginTop: 24,
+  },
+  nutritionSection: {
+    marginBottom: 24,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+  },
+  nutritionSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  nutritionGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  nutritionItem: {
+    alignItems: 'center',
+    minWidth: '30%',
+  },
+  nutritionValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2ecc71',
+    marginBottom: 4,
+  },
+  nutritionLabel: {
+    fontSize: 14,
+    color: '#666',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#2c3e50',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  recipeSection: {
+    marginBottom: 24,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  nutritionUnit: {
+    fontSize: 12,
+    color: '#2ecc71',
+    marginLeft: 1,
+  },
+  bottomButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  mainActionButton: {
+    flex: 1,
+  },
+  saveButtonContainer: {
+    width: 80,
+  },
+  saveButton: {
+    borderColor: '#2ecc71',
+    borderRadius: 8,
+    paddingVertical: 12,
+    backgroundColor: '#f8fff9',
+  },
+  saveButtonText: {
+    color: '#2ecc71',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  servingSizeContainer: {
+    marginBottom: 16,
+  },
+  servingSizeLabel: {
+    fontSize: 16,
+    color: '#2c3e50',
+    marginBottom: 8,
+  },
+  servingSizeButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  servingSizeButton: {
+    borderColor: '#2ecc71',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    minWidth: 60,
+  },
+  selectedServingButton: {
+    backgroundColor: '#2ecc71',
+  },
+  servingSizeButtonText: {
+    color: '#2ecc71',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectedServingButtonText: {
+    color: '#fff',
+  },
+  loadingContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    marginTop: 10,
   },
 });
 
