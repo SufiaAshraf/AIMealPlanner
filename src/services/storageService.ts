@@ -4,8 +4,10 @@ import { format } from 'date-fns';
 
 const STORAGE_KEYS = {
   MEALS: 'meals',
-  GOALS: 'goals',
+  MEAL_HISTORY: 'mealHistory',
   PREFERENCES: 'preferences',
+  GOALS: 'goals',
+  SAVED_MEALS: 'savedMeals'
 };
 
 export const storageService = {
@@ -140,6 +142,38 @@ export const storageService = {
       return jsonValue != null ? JSON.parse(jsonValue) : [];
     } catch (error) {
       console.error('Error getting meal history:', error);
+      throw error;
+    }
+  },
+
+  async saveMealForLater(meal: Meal): Promise<void> {
+    try {
+      const savedMeals = await this.getSavedMeals();
+      const updatedSavedMeals = [...savedMeals, meal];
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_MEALS, JSON.stringify(updatedSavedMeals));
+    } catch (error) {
+      console.error('Error saving meal for later:', error);
+      throw error;
+    }
+  },
+
+  async getSavedMeals(): Promise<Meal[]> {
+    try {
+      const savedMealsJson = await AsyncStorage.getItem(STORAGE_KEYS.SAVED_MEALS);
+      return savedMealsJson ? JSON.parse(savedMealsJson) : [];
+    } catch (error) {
+      console.error('Error getting saved meals:', error);
+      return [];
+    }
+  },
+
+  async removeSavedMeal(mealId: string): Promise<void> {
+    try {
+      const savedMeals = await this.getSavedMeals();
+      const updatedSavedMeals = savedMeals.filter(meal => meal.id !== mealId);
+      await AsyncStorage.setItem(STORAGE_KEYS.SAVED_MEALS, JSON.stringify(updatedSavedMeals));
+    } catch (error) {
+      console.error('Error removing saved meal:', error);
       throw error;
     }
   },

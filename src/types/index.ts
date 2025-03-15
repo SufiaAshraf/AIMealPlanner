@@ -7,11 +7,25 @@ export enum MealType {
 export interface Ingredient {
   name: string;
   isChecked: boolean;
+  quantity?: {
+    value: number;
+    unit: string;
+  };
+  servings?: number;
 }
 
 export interface RecipeStep {
   number: number;
   instruction: string;
+}
+
+export interface NutritionalValue {
+  value: number;
+  unit: string;
+}
+
+export interface NutritionalInfo {
+  [key: string]: NutritionalValue;
 }
 
 export interface Meal {
@@ -23,6 +37,7 @@ export interface Meal {
   type?: MealType;
   recipe?: RecipeStep[];
   ingredients?: Ingredient[];
+  nutritionalInfo?: NutritionalInfo;
 }
 
 export interface DailyGoal {
@@ -46,4 +61,6 @@ export type RootStackParamList = {
   MealPlanner: undefined;
   CalorieTracking: undefined;
   GoalProgress: undefined;
+  UserProfile: undefined;
+  SavedMeals: undefined;
 }; 
