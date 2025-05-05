@@ -2,7 +2,7 @@
 
 A cross-platform mobile application that helps users track and plan their meals using AI-powered suggestions, while monitoring their daily calorie intake and progress towards their nutritional goals.
 
-## Demo
+## Demo : [Initial Demo, Project Under Progress]
 
 <div align="center">
   <video src="https://github.com/user-attachments/assets/6878db57-3cbe-4a5d-a297-997f025ad5fc" width="100%" controls></video>
